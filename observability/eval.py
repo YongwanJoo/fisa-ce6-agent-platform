@@ -1,0 +1,53 @@
+"""
+에이전트 자동 Eval 스크립트 — GitHub Actions CI에서 실행됨
+품질 점수가 PASS_THRESHOLD 미만이면 exit(1)로 배포 차단
+"""
+import os
+import sys
+from observability.langfuse_setup import get_langfuse_client
+
+PASS_THRESHOLD = float(os.getenv("EVAL_PASS_THRESHOLD", "0.75"))
+
+# 평가용 테스트 케이스 (질문 + 기대 키워드)
+TEST_CASES = [
+    {
+        "question": "ArgoCD sync failed: ComparisonError 오류가 발생했습니다.",
+        "expected_keywords": ["sync", "manifest", "git", "yaml"],
+    },
+    {
+        "question": "Pod가 CrashLoopBackOff 상태입니다. 원인이 뭔가요?",
+        "expected_keywords": ["crash", "log", "kubectl", "container"],
+    },
+]
+
+
+def keyword_score(answer: str, keywords: list[str]) -> float:
+    """기대 키워드 중 답변에 포함된 비율을 점수로 반환"""
+    answer_lower = answer.lower()
+    matched = sum(1 for kw in keywords if kw.lower() in answer_lower)
+    return matched / len(keywords)
+
+
+def run_eval() -> float:
+    from agent.graph import build_graph
+
+    graph = build_graph()
+    scores = []
+
+    for case in TEST_CASES:
+        result = graph.invoke({"question": case["question"]})
+        score = keyword_score(result["answer"], case["expected_keywords"])
+        scores.append(score)
+        print(f"[{'PASS' if score >= PASS_THRESHOLD else 'FAIL'}] score={score:.2f} | {case['question'][:50]}")
+
+    avg = sum(scores) / len(scores)
+    print(f"\n총 평균 점수: {avg:.2f} (기준: {PASS_THRESHOLD})")
+    return avg
+
+
+if __name__ == "__main__":
+    avg_score = run_eval()
+    if avg_score < PASS_THRESHOLD:
+        print("❌ Eval 실패 — 배포가 차단됩니다.")
+        sys.exit(1)
+    print("✅ Eval 통과 — 배포를 진행합니다.")

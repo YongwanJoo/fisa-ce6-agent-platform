@@ -1,1 +1,1 @@
-pip install "qdrant-client>=1.12.0,<1.14.0"
+qdrant-client>=1.12.0,<1.14.0

@@ -3,11 +3,12 @@
 venv/
 env/
 
-# 학습 데이터 (PDF, Excel 등 민감 자료)
+# SRE 문서 / 해결 사례 (용량이 크거나 민감한 자료)
 data/*.pdf
 data/*.xlsx
 data/*.xls
 data/*.csv
+data/*.md.bak
 
 # Qdrant 로컬 저장 데이터
 qdrant_data/
