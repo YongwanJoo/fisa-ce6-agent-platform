@@ -47,3 +47,15 @@ build/
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
+
+# 상태 파일 제외 (보안 중요!)
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock.info
+
+# 민감한 변수 설정 파일 제외
+terraform.tfvars
+*.auto.tfvars
+
+# 로컬 작업 디렉토리 제외
+.terraform/
