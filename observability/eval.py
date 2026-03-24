@@ -4,7 +4,10 @@
 """
 import os
 import sys
+from dotenv import load_dotenv
 from observability.langfuse_setup import get_langfuse_client
+
+load_dotenv()
 
 PASS_THRESHOLD = float(os.getenv("EVAL_PASS_THRESHOLD", "0.75"))
 
