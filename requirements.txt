@@ -17,7 +17,7 @@ uvicorn[standard]
 pydantic
 
 # Observability / Eval
-langfuse
+langfuse>=3.0.0
 
 # Utilities
 python-dotenv
