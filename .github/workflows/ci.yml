@@ -1,4 +1,4 @@
-name: AgentOps CI — Eval & Deploy
+name: AgentOps CI/CD
 
 on:
   push:
@@ -11,21 +11,22 @@ env:
 
 jobs:
   eval:
-    name: 🧪 Agent Eval
+    name: Agent Eval
     runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
     steps:
       - uses: actions/checkout@v4
 
-      - name: Python 설정
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
 
-      - name: 의존성 설치
+      - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: 에이전트 Eval 실행 (품질 기준 미달 시 배포 차단)
+      - name: Run agent eval
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           QDRANT_URL: ${{ secrets.QDRANT_URL }}
@@ -35,24 +36,27 @@ jobs:
         run: python -m observability.eval
 
   build-and-push:
-    name: 📦 Image Build & Push
-    needs: eval                        # Eval 통과 시에만 실행
+    name: Build & Push Image
+    needs: eval
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: GHCR 로그인
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: OCI 이미지 빌드 & Push
+      - name: Build and push image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -61,11 +65,27 @@ jobs:
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      - name: deployment.yaml 이미지 태그 업데이트
+  update-manifest:
+    name: Update ArgoCD Manifests
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: needs.build-and-push.result == 'success'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image tag in deployment manifest
         run: |
           sed -i "s|image: .*|image: ${{ env.IMAGE_NAME }}:${{ github.sha }}|" deployment/deployment.yaml
+
+      - name: Commit manifest change
+        run: |
+          if git diff --quiet; then
+            echo "No manifest changes to commit"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add deployment/deployment.yaml
-          git commit -m "chore: update image tag to ${{ github.sha }}" || echo "변경 없음"
+          git commit -am "chore: update image tag to ${{ github.sha }}"
           git push

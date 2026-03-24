@@ -59,7 +59,17 @@ kubectl get pvc -n sre-agent
 ```
 
 ### Step 4. 에이전트 매니페스트 배포 준비 및 배포
-`deployment.yaml` 파일 내의 `image: ` 태그와 `argocd-app.yaml`의 `repoURL:` 값들을 본인의 GitHub 주소로 수정한 뒤, ArgoCD나 수동 적용을 진행합니다.
+FastAPI 코드를 쿠버네티스에 올리려면 먼저 도커(Docker) 이미지로 빌드하고 컨테이너 저장소(ghcr.io)에 업로드해야 합니다.
+```bash
+# 1. GitHub Container Registry 로그인 (본인의 Github PAT 토큰 필요)
+echo $CR_PAT | docker login ghcr.io -u yongwanjoo --password-stdin
+
+# 2. 이미지 빌드 및 푸시
+docker build -t ghcr.io/yongwanjoo/sre-agent:latest .
+docker push ghcr.io/yongwanjoo/sre-agent:latest
+```
+
+이상이 완료되면 `deployment.yaml` 파일 내의 `image: ` 태그가 올바른지 확인한 뒤, ArgoCD나 수동 적용을 진행합니다.
 ```bash
 # ArgoCD 연동을 하려면
 kubectl apply -f deployment/argocd-app.yaml
