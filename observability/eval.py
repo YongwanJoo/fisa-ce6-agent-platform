@@ -2,6 +2,7 @@
 에이전트 자동 Eval 스크립트 — GitHub Actions CI에서 실행됨
 품질 점수가 PASS_THRESHOLD 미만이면 exit(1)로 배포 차단
 """
+import json
 import os
 import sys
 from dotenv import load_dotenv
@@ -10,18 +11,17 @@ from observability.langfuse_setup import get_langfuse_client
 load_dotenv()
 
 PASS_THRESHOLD = float(os.getenv("EVAL_PASS_THRESHOLD", "0.75"))
+GOLDEN_SET_PATH = os.path.join(os.path.dirname(__file__), "golden_set.json")
 
-# 평가용 테스트 케이스 (질문 + 기대 키워드)
-TEST_CASES = [
-    {
-        "question": "ArgoCD sync failed: ComparisonError 오류가 발생했습니다.",
-        "expected_keywords": ["sync", "manifest", "git", "yaml"],
-    },
-    {
-        "question": "Pod가 CrashLoopBackOff 상태입니다. 원인이 뭔가요?",
-        "expected_keywords": ["crash", "log", "kubectl", "container"],
-    },
-]
+# 평가용 테스트 케이스 로드
+try:
+    with open(GOLDEN_SET_PATH, "r", encoding="utf-8") as f:
+        TEST_CASES = json.load(f)
+except FileNotFoundError:
+    print(f"⚠️ {GOLDEN_SET_PATH} 파일을 찾을 수 없어 기본 케이스를 사용합니다.")
+    TEST_CASES = [
+        {"question": "Pod가 CrashLoopBackOff 상태입니다.", "expected_keywords": ["crash", "log"]}
+    ]
 
 
 def keyword_score(answer: str, keywords: list[str]) -> float:

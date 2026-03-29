@@ -14,6 +14,12 @@ jobs:
     name: Agent Eval
     runs-on: ubuntu-latest
     if: github.actor != 'github-actions[bot]'
+    services:
+      qdrant:
+        image: qdrant/qdrant:v1.13.0
+        ports:
+          - 6333:6333
+          - 6334:6334
     steps:
       - uses: actions/checkout@v4
 
@@ -26,10 +32,16 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Seed test data to CI Qdrant
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          QDRANT_URL: http://localhost:6333
+        run: python test_data.py
+
       - name: Run agent eval
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_URL: http://localhost:6333
           LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
           EVAL_PASS_THRESHOLD: "0.75"

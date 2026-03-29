@@ -25,6 +25,7 @@
 | `deployment.yaml` | 에이전트 파드 배포 설정 |
 | `service.yaml` | 에이전트 외부 공개용 LoadBalancer 설정 |
 | `argocd-app.yaml` | GitOps 배포 파이프라인 구성 |
+| `secret.example.yaml` | API 키(OpenAI, Langfuse) 설정 템플릿 |
 
 ---
 
@@ -97,3 +98,24 @@ kubectl get svc sre-agent-svc -n sre-agent
 kubectl port-forward svc/n8n-svc 5678:5678 -n sre-agent
 ```
 이후 `http://localhost:5678` 브라우저 창으로 접속합니다! (창을 끄면 차단됨)
+
+---
+
+## 🏗️ 실 운영 DB에 지식 적재하기 (초기 시딩)
+
+GKE에 Qdrant를 처음 배포하면 데이터가 비어 있습니다. 아래 명령어로 로컬에 있는 테스트 데이터를 클라우드 DB로 밀어 넣을 수 있습니다.
+
+1. **Qdrant 포트 포워딩** (터미널 1):
+   ```bash
+   kubectl port-forward svc/qdrant-svc 6333:6333 -n sre-agent
+   ```
+
+2. **로컬에서 시딩 스크립트 실행** (터미널 2):
+   ```bash
+   # .env 파일에 OPENAI_API_KEY가 있어야 합니다.
+   # QDRANT_URL은 로컬호스트(포트포워딩 중)를 바라봅니다.
+   export QDRANT_URL=http://localhost:6333
+   python test_data.py
+   ```
+
+이제 에이전트가 클라우드에서도 풍부한 지식을 바탕으로 답변할 수 있습니다!

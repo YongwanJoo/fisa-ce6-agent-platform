@@ -1,0 +1,27 @@
+[
+  {
+    "question": "ArgoCD sync failed: ComparisonError 오류가 발생했습니다.",
+    "ground_truth": "ArgoCD ComparisonError는 주로 배포 매니페스트와 K8s 현재 상태의 불일치 혹은 이미지 태그 누락 등으로 발생합니다. kubectl describe pod로 상세 이유를 확인해야 합니다.",
+    "expected_keywords": ["sync", "manifest", "git", "yaml", "ComparisonError"]
+  },
+  {
+    "question": "Pod가 CrashLoopBackOff 상태입니다. 원인이 뭔가요?",
+    "ground_truth": "CrashLoopBackOff는 컨테이너 내부 프로세스가 종료 후 계속 재시작되는 상태입니다. 로그 확인(kubectl logs)과 이벤트 확인(kubectl describe)이 필수적입니다.",
+    "expected_keywords": ["crash", "log", "kubectl", "container", "재시작"]
+  },
+  {
+    "question": "OOMKilled 에러를 해결하는 방법이 궁금합니다.",
+    "ground_truth": "OOMKilled는 컨테이너가 지정된 메모리 제한을 초과했음을 의미합니다. resources.limits.memory 값을 높이거나 앱의 메모리 누수를 점검하세요.",
+    "expected_keywords": ["OOMKilled", "memory", "limit", "리소스", "메모리"]
+  },
+  {
+    "question": "k8s 서비스 타입 중 LoadBalancer와 ClusterIP의 차이가 뭐야?",
+    "ground_truth": "ClusterIP는 클러스터 내부 전용 통신용 IP를 할당하고, LoadBalancer는 외부 클라우드 로드밸런서를 생성해 외부 접근이 가능하게 만듭니다.",
+    "expected_keywords": ["ClusterIP", "LoadBalancer", "외부", "내부", "IP", "서비스"]
+  },
+  {
+    "question": "ArgoCD에서 OutOfSync 상태가 지속될 때 조치 방법은?",
+    "ground_truth": "OutOfSync는 Git 설정과 클러스터 상태가 다름을 의미합니다. 자동 동기화(Self-Heal)를 켜거나 수동으로 Sync 버튼을 클릭해 해결할 수 있습니다.",
+    "expected_keywords": ["OutOfSync", "Sync", "Git", "동기화", "상태"]
+  }
+]
