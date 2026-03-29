@@ -6,7 +6,6 @@ import json
 import os
 import sys
 from dotenv import load_dotenv
-from observability.langfuse_setup import get_langfuse_client
 
 load_dotenv()
 

@@ -20,11 +20,16 @@ class QueryResponse(BaseModel):
     retry_count: int
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 @app.post("/query", response_model=QueryResponse)
 async def query(req: QueryRequest):
     try:
         config = {"callbacks": [get_langfuse_handler()]}
-    except Exception:
+    except Exception as e:
+        logger.error(f"Langfuse handler initialization failed: {e}")
         config = {}
 
     result = _graph.invoke({"question": req.question}, config=config)

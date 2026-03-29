@@ -29,7 +29,7 @@ spec:
         fsGroup: 1000  # n8n 컨테이너는 node 유저(1000)로 동작하므로 PVC 권한 부여
       containers:
         - name: n8n
-          image: docker.io/n8nio/n8n:latest
+          image: docker.io/n8nio/n8n:1.10.1   
           ports:
             - containerPort: 5678
           env:

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: sre-agent
-          image: ghcr.io/yongwanjoo/sre-agent:latest   # ArgoCD가 이미지 태그를 자동 업데이트
+          image: ghcr.io/yongwanjoo/sre-agent:0.1.0   
           ports:
             - containerPort: 8000
           envFrom:
@@ -36,3 +36,9 @@ spec:
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
