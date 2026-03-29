@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-pvc
+  namespace: sre-agent
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+  namespace: sre-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+    spec:
+      securityContext:
+        fsGroup: 1000  # n8n 컨테이너는 node 유저(1000)로 동작하므로 PVC 권한 부여
+      containers:
+        - name: n8n
+          image: docker.io/n8nio/n8n:1.10.1   
+          ports:
+            - containerPort: 5678
+          env:
+            - name: N8N_HOST
+              value: "localhost"
+            - name: N8N_PORT
+              value: "5678"
+            - name: N8N_PROTOCOL
+              value: "http"
+            - name: NODE_ENV
+              value: "production"
+            - name: WEBHOOK_URL
+              value: "http://localhost:5678/"
+            - name: GENERIC_TIMEZONE
+              value: "Asia/Seoul"
+          volumeMounts:
+            - name: n8n-storage
+              mountPath: /home/node/.n8n
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+      volumes:
+        - name: n8n-storage
+          persistentVolumeClaim:
+            claimName: n8n-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n-svc
+  namespace: sre-agent
+spec:
+  selector:
+    app: n8n
+  ports:
+    - protocol: TCP
+      port: 5678
+      targetPort: 5678
+  type: ClusterIP  # 보안상 브라우저 접근은 kubectl port-forward 로 수행 권장
