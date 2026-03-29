@@ -44,6 +44,7 @@ jobs:
           QDRANT_URL: http://localhost:6333
           LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}
           EVAL_PASS_THRESHOLD: "0.75"
         run: python -m observability.eval
 
