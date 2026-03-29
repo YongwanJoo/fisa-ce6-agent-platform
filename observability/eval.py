@@ -7,12 +7,15 @@ import os
 import sys
 from dotenv import load_dotenv
 
+from pydantic import BaseModel, Field
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+
 load_dotenv()
 
 PASS_THRESHOLD = float(os.getenv("EVAL_PASS_THRESHOLD", "0.75"))
 GOLDEN_SET_PATH = os.path.join(os.path.dirname(__file__), "golden_set.json")
 
-# 평가용 테스트 케이스 로드
 try:
     with open(GOLDEN_SET_PATH, "r", encoding="utf-8") as f:
         TEST_CASES = json.load(f)
@@ -23,16 +26,11 @@ except FileNotFoundError:
     ]
 
 
-from pydantic import BaseModel, Field
-
 class LLMJudgeResult(BaseModel):
     score: float = Field(description="0.0에서 1.0 사이의 평가 점수")
     reason: str = Field(description="해당 점수를 부여한 상세하고 명확한 1문장 사유")
 
 def llm_judge_score(question: str, answer: str, ground_truth: str) -> tuple[float, str]:
-    from langchain_openai import ChatOpenAI
-    from langchain_core.prompts import ChatPromptTemplate
-    
     llm = ChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"), temperature=0)
     
     prompt = ChatPromptTemplate.from_messages([
@@ -54,9 +52,12 @@ def llm_judge_score(question: str, answer: str, ground_truth: str) -> tuple[floa
 
 def keyword_score(answer: str, keywords: list[str]) -> float:
     """하위 호환성을 위한 구버전 키워드 점수 계산 (ground_truth가 없는 예전 데이터용)"""
+    if not keywords:
+        return 0.0
     answer_lower = answer.lower()
     matched = sum(1 for kw in keywords if kw.lower() in answer_lower)
     return matched / len(keywords)
+
 
 def run_eval() -> float:
     from agent.graph import build_graph
@@ -68,7 +69,8 @@ def run_eval() -> float:
     try:
         handler = get_langfuse_handler()
         config = {"callbacks": [handler]}
-    except Exception:
+    except Exception as e:
+        print(f"⚠️ Langfuse 연동 실패 (평가만 진행합니다): {e}")
         handler = None
         config = {}
 
@@ -91,16 +93,22 @@ def run_eval() -> float:
         intent = result.get("intent", "unknown")
         print(f"[{status}] score={score:.2f} | 의도: {intent} | Q: {case['question'][:50]}...")
         
-        if score < 1.0:
-            print(f"   ↳ 🚨 감점 사유: {reason}")
-            short_ans = result['answer'].replace('\n', ' ')
-            print(f"   ↳ 🤖 실제 답변: {short_ans[:200]}...\n")
+        print(f"   ↳ 💡 LLM 평가 사유: {reason}")
+        short_ans = result['answer'].replace('\n', ' ')
+        print(f"   ↳ 🤖 에이전트 답변: {short_ans[:200]}...\n")
+
+    if not scores:
+        print("⚠️ 평가할 테스트 케이스가 없습니다.")
+        return 0.0
 
     avg = sum(scores) / len(scores)
     print(f"\n최종 LLM-as-a-Judge 평균 점수: {avg:.2f} (기준: {PASS_THRESHOLD})")
     
     if handler:
-        handler.flush()
+        if hasattr(handler, "langfuse"):
+            handler.langfuse.flush()
+        elif hasattr(handler, "auth"):
+            handler.auth.flush()
         
     return avg
 
