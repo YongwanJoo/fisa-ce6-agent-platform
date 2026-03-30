@@ -106,7 +106,7 @@ QDRANT_URL=http://localhost:6333  # 로컬용 유지
 podman run -d --name qdrant \
   -p 6333:6333 \
   -v $(pwd)/qdrant_data:/qdrant/storage:Z \
-  docker.io/qdrant/qdrant:v1.13.0
+  docker.io/qdrant/qdrant:v1.17.1
 ```
 ✅ 확인: http://localhost:6333/dashboard 접속되면 성공
 
