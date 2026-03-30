@@ -48,7 +48,10 @@ spec:
             - name: GENERIC_TIMEZONE
               value: "Asia/Seoul"
             - name: N8N_ENCRYPTION_KEY
-              value: "sre-agent-fixed-encryption-key-ce6"
+              valueFrom:
+                secretKeyRef:
+                  name: sre-agent-secrets
+                  key: N8N_ENCRYPTION_KEY
           startupProbe:
             httpGet:
               path: /healthz
