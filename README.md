@@ -23,19 +23,7 @@ GCP GKE + GitOps(ArgoCD) + n8n 클라우드 자동화 구조 적용
 
 ## 전체 아키텍처
 
-```
-[외부 / 사용자]                      [GCP GKE — sre-agent 네임스페이스]
-                                        ┌─────────────────────────────────┐
- LoadBalancer (80)  ───────────────►   │  SRE Agent (FastAPI + LangGraph) │
-                                        │    ↕ ClusterIP 내부 통신          │
- AlertManager Webhook ────────────►   │  Qdrant DB ←── GCP PD 5GB        │
-                                        │  n8n Pipeline ←── GCP PD 5GB    │
- kubectl port-forward (관리자 전용) ──► │  Prometheus + AlertManager        │
-                                        └─────────────────────────────────┘
-                                                     ↕
-                                           Langfuse Cloud (관측)
-                                           Discord (장애 리포트)
-```
+<img width="1754" height="1004" alt="image" src="https://github.com/user-attachments/assets/bb600562-042d-42bc-8059-eac6c2c0fd4a" />
 
 ---
 
