@@ -1,197 +1,256 @@
-<img width="1024" height="338" alt="image" src="https://github.com/user-attachments/assets/87b5c235-6c99-494a-8f99-d0e7f0641a76" />
+# fisa-ce6-agent-platform
 
-# 🤖 우리 FISA 클라우드 엔지니어링 6기 기술 세미나
+> **AgentOps** — ArgoCD / Kubernetes 운영 중 발생하는 에러를 자동 감지·분석하고, Discord로 해결책을 리포트하는 SRE 에이전트 플랫폼입니다.
+> 단순 RAG 챗봇이 아닌, **에이전트 배포·지식 자동화·품질 평가·실시간 관측**이 통합된 완전 관리형 인프라를 구현합니다.
 
-> **AgentOps** — AI 에이전트를 GitOps 기반 완전 관리형 인프라에 배포/운영하는 플랫폼
-> (GCP K8s + n8n 완전 클라우드 자동화 구조 적용)
-
-ArgoCD / Kubernetes 운영 중 발생하는 에러 로그를 분석하고, 공식 문서·과거 사례를 기반으로 해결책을 제시하는 **SRE 에이전트**입니다.
-
-이 시스템의 핵심은 단순한 RAG 봇이 아니라, **에이전트를 어떻게 배포하고, 데이터를 어떻게 최신화하며(n8n 클라우드 내부망 통신), 퀄리티를 평가(Eval)하는지 보여주는 "AgentOps"의 완성형 무선망 파이프라인**을 띄우는 것에 있습니다.
+GCP GKE + GitOps(ArgoCD) + n8n 클라우드 자동화 구조 적용
 
 ---
 
-## 📌 전체 아키텍처 (GCP GKE + 자동화 인프라)
+## 목차
+
+1. [전체 아키텍처](#전체-아키텍처)
+2. [디렉토리 구조](#디렉토리-구조)
+3. [주요 기능](#주요-기능)
+4. [기술 스택](#기술-스택)
+5. [빠른 시작 (로컬)](#빠른-시작-로컬)
+6. [GCP 배포](#gcp-배포)
+7. [AgentOps 파이프라인](#agentops-파이프라인)
+8. [네트워크 보안 설계](#네트워크-보안-설계)
+9. [트러블슈팅](#트러블슈팅)
+
+---
+
+## 전체 아키텍처
 
 ```
-[인터넷 / 사내망 오픈]                    [GCP GKE 클러스터 내부 (sre-agent Ns)]
- LoadBalancer (80)     →        API 에이전트 (Pod)
-                           (인터넷 차단 내부통신 ↓ API 호출: http://qdrant-svc:6333)
-                              Qdrant DB (Pod) ←동적 마운트→ [GCP 영구 디스크 5GB]
-                           (인터넷 차단 내부통신 ↑ 문서 적재: http://qdrant-svc:6333)
- Port-Forward (5678)   →        n8n 파이프라인 (Pod) ←동적 마운트→ [GCP 영구 디스크 5GB]
+[외부 / 사용자]                      [GCP GKE — sre-agent 네임스페이스]
+                                        ┌─────────────────────────────────┐
+ LoadBalancer (80)  ───────────────►   │  SRE Agent (FastAPI + LangGraph) │
+                                        │    ↕ ClusterIP 내부 통신          │
+ AlertManager Webhook ────────────►   │  Qdrant DB ←── GCP PD 5GB        │
+                                        │  n8n Pipeline ←── GCP PD 5GB    │
+ kubectl port-forward (관리자 전용) ──► │  Prometheus + AlertManager        │
+                                        └─────────────────────────────────┘
+                                                     ↕
+                                           Langfuse Cloud (관측)
+                                           Discord (장애 리포트)
 ```
 
-**✅ 왜 GCP 클라우드 내부에 에이전트 + Qdrant + n8n을 한 번에 배포했나요?**
-1. **완벽한 데이터 자동화**: 노트북을 꺼도 새벽마다 클라우드 안(n8n Pod)에서 `kubernetes.io` 공식 문서를 자동으로 크롤링/임베딩해 옆 파드(Qdrant)에 꽂아 넣습니다.
-2. **비용 효율 및 안정성**: 영구 볼륨(Persistent Disk)을 엮어 노드가 재부팅되어도 벡터 데이터가 1원도 유실되지 않습니다.
-3. **실시간 관측 (Observability)**: Langfuse Cloud를 사용하여 클러스터 외부에서도 LLM 비용, 레이턴시, 답변 품질을 실시간으로 모니터링합니다.
-
 ---
 
-## 🤖 Pro-active 장애 대응 파이프라인 (Updated)
+## 디렉토리 구조
 
-단순히 묻는 말에 답하는 챗봇을 넘어, 클러스터의 상태를 실시간으로 감시하고 장애 발생 시 LLM이 원인을 분석하여 리포트를 투척하는 능동형 에이전트입니다.
-
-- **Prometheus**: 파드의 `CrashLoopBackOff`, `OOMKilled` 지표를 실시간 모니터링.
-- **AlertManager**: 장애 감지 시 1분의 대기(Pending) 후 에이전트의 `/webhook/alertmanager` 엔드포인트로 Webhook 발송.
-- **SRE Agent (FastAPI)**: Webhook 수신 즉시 LangGraph를 가동하여 Qdrant 지식 베이스 검색 및 원인 분석 수행.
-- **Discord reporting**: 분석된 해결책과 `kubectl` 디버깅 명령어를 포함한 리포트를 사내 채널에 즉시 전송.
-
-```mermaid
-graph TD;
-    P[Prometheus] -- K8s/파드 지표 감시 --> AM[AlertManager]
-    AM -- 에러 감지 시 Webhook 발송 --> Agent[SRE Agent API]
-    Agent -- 1. Qdrant 실무 지식 검색 --> Q[(Qdrant Vector DB)]
-    Agent -- 2. 원인 분석 및 Discord 발송 (Tool 호출) --> Discord[Discord 개발/SRE 채널]
+```
+fisa-ce6-agent-platform/
+├── agent/              # FastAPI 서버 + LangGraph 에이전트 핵심 코드
+│   ├── api.py          # REST API 엔드포인트 (/query, /health, /webhook/alertmanager)
+│   ├── graph.py        # LangGraph 에이전트 상태 머신 (전체 흐름 제어)
+│   ├── llm.py          # LLM 호출 — 의도 분류 / 쿼리 재작성 / 답변 생성
+│   └── retriever.py    # Qdrant 벡터 검색 (의도에 따라 컬렉션 선택)
+├── data/               # 에이전트 지식 원본 문서 보관소 (로컬 수동 적재용)
+│   ├── k8s_troubleshooting.md
+│   ├── argocd_troubleshooting.md
+│   └── terraform_troubleshooting.md
+├── deployment/         # GKE 배포용 Kubernetes 매니페스트
+│   ├── prometheus/     # Prometheus 알람 규칙 및 AlertManager 설정
+│   ├── deployment.yaml
+│   ├── qdrant.yaml
+│   ├── n8n.yaml
+│   └── argocd-app.yaml
+├── observability/      # 관측(Langfuse) 및 품질 평가(Eval) 코드
+│   ├── eval.py         # CI 자동 평가 스크립트 (점수 미달 시 배포 차단)
+│   ├── langfuse_setup.py
+│   └── golden_set.json # 평가 기준 질문-정답 셋
+├── pipeline/           # n8n 자동화 워크플로우 백업 및 가이드
+├── scripts/            # 로컬 운영 스크립트
+│   ├── seed_data.py    # Qdrant 초기 지식 시딩
+│   └── run_agent.py    # 에이전트 수동 테스트 실행
+├── terraform/          # GKE 클러스터 인프라 코드 (IaC)
+│   ├── main.tf         # GKE 클러스터 + 노드 풀 정의
+│   ├── variables.tf
+│   └── terraform.tfvars.template
+└── qdrant_data/        # 로컬 Qdrant 벡터 데이터 저장소 (로컬 테스트 전용)
 ```
 
-**✅ 완전 자동화 시나리오 흐름**
-1. **[인프라 감시]** K8s 클러스터 내의 Prometheus & AlertManager가 파드의 OOMKilled, CrashLoopBackOff 등의 치명적 에러를 실시간으로 감지합니다.
-2. **[에이전트 기상]** AlertManager가 장애 로그를 담아 SRE 에이전트의 API Webhook을 찌릅니다.
-3. **[원인 분석]** 잠에서 깬 에이전트(LangGraph)가 Qdrant에 적재된 K8s/ArgoCD/Terraform 실무 지식을 검색하여 에러의 근본 원인과 해결 코드를 파악합니다.
-4. **[능동적 Discord 보고 🔫]** 에이전트가 자기 손으로 직접 **Discord Webhook Tool(에이전트 무기)** 을 꺼내어, 단순 에러 알람이 아닌 **"정확한 원인과 인프라 조치 방법이 포함된 사고 브리핑 리포트"** 를 사내 디스코드 방에 즉시 전송합니다.
+---
+
+## 주요 기능
+
+### 능동형 장애 대응
+
+Prometheus가 `CrashLoopBackOff`, `OOMKilled` 등의 지표를 감지하면 AlertManager가 SRE 에이전트의 `/webhook/alertmanager`로 Webhook을 전송합니다. 에이전트는 LangGraph를 가동해 Qdrant 지식 베이스를 검색하고, 원인 분석 + `kubectl` 디버깅 명령어가 포함된 브리핑 리포트를 Discord 채널에 즉시 전송합니다.
+
+```
+Prometheus ──► AlertManager ──► SRE Agent ──► Qdrant 검색
+                                     │
+                                     └──► Discord (원인 + 조치 명령어)
+```
+
+### 지식 자동화
+
+n8n Pod가 매일 새벽 `kubernetes.io` 공식 문서를 자동으로 크롤링·임베딩해 Qdrant에 적재합니다. 로컬 노트북이 꺼져 있어도 클라우드 내부에서 지식이 최신화됩니다. GCP 영구 디스크(PD)를 마운트해 파드 재시작 시에도 벡터 데이터가 유실되지 않습니다.
+
+### 품질 게이트 (Eval in CI)
+
+프롬프트 또는 에이전트 로직을 변경해 GitHub에 Push하면, CI가 자동으로 `observability/eval.py`를 실행합니다. 평균 점수가 0.75 미만이면 Docker 이미지 빌드 자체가 차단되므로, 품질이 낮아진 에이전트는 절대 운영 환경에 배포되지 않습니다.
 
 ---
 
-## 🛡️ 네트워크 보안 설계 (Zero Trust Architecture)
+## 기술 스택
 
-포트폴리오에서 강조할 만한 **실무 수준의 네트워크 격리 및 접근 제어 전략**을 적용했습니다.
-
-| 컴포넌트 | K8s 서비스 타입 | 접근 방식 | 보안 목적 |
-|----------|-----------------|-----------|-----------|
-| **SRE 에이전트 봇** | `LoadBalancer` | 인터넷 공인 IP 개방 (80 포트) | 슬랙/사용자가 챗봇 API에 직접 통신해야 하므로 유일하게 외부에 개방 |
-| **Qdrant DB** | `ClusterIP` | K8s 내부망 통신 격리 | 인프라 지식이 담긴 핵심 데이터베이스이므로 외부 접속 원천 차단 |
-| **n8n / ArgoCD** | `ClusterIP` | 🔒 `kubectl port-forward` | 해커의 비정상적 파이프라인 조작을 막기 위해 **로컬 인증된 관리자만 포트포워딩 방식**으로 UI에 접근 |
-
-단순히 통신 구멍(Port)을 다 열어두는 장난감 프로젝트가 아니라, **"고객(User)이 맞닿는 API 컨테이너만 외부에 퍼블리시하고, 데이터를 다루는 백엔드 인프라는 쿠버네티스 내부 DNS(예: `http://qdrant-svc:6333`)로만 통신"** 하도록 설계된 안전한 클라우드 네이티브 환경입니다.
-
----
-
-## 🛠️ 필요한 가이드
-
-이 프로젝트는 **로컬 테스트**와 **완벽한 GCP 배포** 모두 가능합니다. 
-
-- **빠르게 클라우드에 전체 인프라를 띄우고 싶다면**: 👉 [GCP GKE 배포 전체 라인 상세 가이드](deployment/README.md)
-- **n8n 자동 파이프라인 구성이 궁금하다면**: 👉 [클라우드 백업 자동화 (n8n) 가이드](pipeline/README.md)
-- **로컬에서 파이썬 에이전트 코드만 띄워보고 싶다면**: 아래 로컬 실행을 따라주세요.
+| 레이어 | 기술 | 역할 |
+|--------|------|------|
+| **에이전트 프레임워크** | LangGraph 0.2.x | 노드 기반 에이전트 상태 머신, Tool 호출 |
+| **LLM** | OpenAI GPT-4o-mini | 에러 분석 및 해결책 생성 |
+| **벡터 DB** | Qdrant v1.13.x | K8s·ArgoCD 문서 임베딩 저장 및 검색 |
+| **데이터 파이프라인** | n8n (latest) | 공식 문서 자동 크롤링·임베딩 스케줄링 |
+| **에이전트 관측** | Langfuse 2.x | LLM 비용·레이턴시·품질 실시간 트레이싱 |
+| **인프라 모니터링** | Prometheus + AlertManager | Pod 상태 감시 및 Webhook 트리거 |
+| **GitOps 배포** | ArgoCD (latest) | Git 변경 감지 → GKE 자동 Sync |
+| **클라우드 인프라** | GCP GKE (Standard/Autopilot) | 컨테이너 오케스트레이션 |
+| **IaC** | Terraform | GKE 클러스터 인프라 코드화 |
+| **CI/CD** | GitHub Actions + GHCR | Eval → 빌드 → 이미지 등재 파이프라인 |
 
 ---
 
-## 🚀 로컬 개발환경 실행 가이드
+## 빠른 시작 (로컬)
 
-> 배포가 아닌 순수 에이전트 봇 자체를 로컬에서 돌려보는 단계입니다.
+> 전체 GCP 배포 없이 에이전트 코드만 로컬에서 실행하는 방법입니다.
 
-### Step 1. 레포 클론 및 환경 설정
+**1. 레포 클론 및 환경 설정**
 
 ```bash
 git clone https://github.com/nyongwan/fisa-ce6-agent-platform.git
 cd fisa-ce6-agent-platform
 
-# .env.example을 복사해서 .env 파일 생성
 cp .env.example .env
+# .env에서 OPENAI_API_KEY 값을 채워주세요
 
-# 파이썬 가상환경
-python3 -m venv .venv
-source .venv/bin/activate 
-
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-`.env` 파일을 열어서 필수 값 1개를 꼭 채웁니다:
-```env
-OPENAI_API_KEY=sk-...         # 필수: OpenAI API 키
-QDRANT_URL=http://localhost:6333  # 로컬용 유지
-```
+**2. 로컬 Qdrant 실행**
 
-### Step 2. 로컬용 Qdrant 실행 (컨테이너)
-데이터베이스 역할을 할 벡터 DB입니다.
 ```bash
-# Docker 또는 Podman
 podman run -d --name qdrant \
   -p 6333:6333 \
   -v $(pwd)/qdrant_data:/qdrant/storage:Z \
   docker.io/qdrant/qdrant:v1.17.1
 ```
-✅ 확인: http://localhost:6333/dashboard 접속되면 성공
 
-### Step 3. 에이전트 로컬 실행
+`http://localhost:6333/dashboard` 에 접속되면 정상입니다.
+
+**3. 에이전트 실행**
 
 ```bash
-# 옵션 1: CLI 모드 (터미널에서 직접 물어보기)
+# CLI 모드
 python main.py
 
-# 옵션 2: API 챗봇 서버 모드 
+# API 서버 모드 (FastAPI)
 uvicorn agent.api:app --reload --port 8000
 ```
 
----
+**4. 에이전트에 지식 주입 (선택)**
 
-## 🔄 AgentOps 파이프라인 CI/CD 흐름
-
-```
-개발자의 Agent 프롬프트 / 코드 변경
-    ↓
-GitHub Push
-    ↓
-GitHub Actions
-    ├── [Eval] 테스트 스크립트 실행 (품질 통과?)
-    │       ├── 통과(Pass) → 이미지 빌드 후 GHCR 등재 
-    │       └── 실패(Fail점수) → 즉시 배포 중단 ❌
-    ↓
-ArgoCD가 깃 변경 감지 → GKE 클러스터에 Sync
-    ↓
-Langfuse로 배포 이후 실시간 관측
-    (비용 / 레이턴시 / 답변 품질 실시간 추적)
+```bash
+# 로컬 Qdrant에 테스트 데이터 적재
+python scripts/seed_data.py
 ```
 
 ---
 
-## 🛠️ 기술 스택
+## GCP 배포
 
-| 역할 | 기술 | 버전 |
-|------|------|------|
-| 클라우드 인프라 | **Google Cloud Platform (GKE)** | Standard / Autopilot |
-| GitOps 배포 | [ArgoCD](https://argo-cd.readthedocs.io/) | latest |
-| 데이터 파이프라인 | [n8n](https://n8n.io/) | latest |
-| 에이전트 프레임워크 | [LangGraph](https://langchain-ai.github.io/langgraph/) | 0.2.x |
-| 벡터 DB | [Qdrant](https://qdrant.tech/) | v1.13.x |
-| 에이전트 관측 | [Langfuse](https://langfuse.com/) | 2.x |
-| LLM | [OpenAI GPT-4o-mini](https://openai.com) | - |
+전체 GKE 인프라를 한 번에 띄우는 방법은 각 가이드를 참고하세요.
 
----
+- [GCP GKE 전체 배포 가이드](./deployment/README.md)
+- [n8n 자동 파이프라인 구성 가이드](./pipeline/README.md)
+- [Terraform GKE 클러스터 프로비저닝](./terraform/)
 
-## 🚨 트러블슈팅 (Troubleshooting)
+### Terraform으로 GKE 클러스터 생성
 
-이 프로젝트를 운영하며 겪은 주요 문제와 해결 방안입니다.
+```bash
+cd terraform
+cp terraform.tfvars.template terraform.tfvars
+# terraform.tfvars에 project_id, region, zone 입력
 
-### 1. CI/CD 단계에서 평가 점수(Eval Score)가 0점이 나오는 문제
-- **상태**: GitHub Actions 실행 시 Qdrant DB가 비어 있어 에이전트가 아무것도 검색하지 못함.
-- **원인**: 테스트용 DB가 CI 환경에 독립적으로 존재하지 않았음.
-- **해결**: `.github/workflows/ci.yml`에 **Qdrant Sidecar 서비스**를 추가하고, 평가 직전 `test_data.py`를 실행해 데이터를 자동 주입하도록 개선함.
+terraform init
+terraform apply
+```
 
-### 2. GKE 배포 후 에이전트 답변 품질 저하
-- **상태**: 클러스터에 갓 배포된 Qdrant는 지식이 없는 상태임.
-- **해결**: 로컬에서 `kubectl port-forward`를 이용해 클라우드 Qdrant와 연결한 뒤, `test_data.py`를 실행하여 초기 지식(Golden Set 기반)을 수동 시딩함.
-
-### 3. Prometheus Rule 인식 불가 문제 (Label Selector)
-- **현상**: `PrometheusRule`을 배포했으나 프로메테우스 대시보드 알람 목록에 나타나지 않음.
-- **원인**: 프로메테우스 오퍼레이터는 `ruleSelector`에 정의된 특정 라벨이 붙은 리소스만 수집함.
-- **해결**: `release: kube-prometheus-stack` 라벨을 metadata에 명시적으로 추가하여 오퍼레이터가 규칙을 인식하도록 교정함.
-
-### 4. GitOps(ArgoCD) 환경에서의 Secret 동기화 충돌
-- **현상**: `kubectl apply`로 시크릿(`Secret`)을 수정해도 몇 초 뒤 원래 값으로 원복되거나 일부 키가 사라짐.
-- **원인**: ArgoCD의 Self-Heal(자동 복구) 기능이 활성화되어 있어, 수동으로 수정된 인프라를 Git에 저장된 상태(Single Source of Truth)로 강제 동기화시킴.
-- **해결**: GitHub Action Secrets를 수정하여 파이프라인을 정석대로 태우거나, 테스트 시에는 ArgoCD의 Auto-Sync를 잠시 비활성화하여 수동 설정값이 유지되도록 조치함.
-
-### 5. Langfuse 401 Unauthorized 에러 및 관측 단절
-- **현상**: 에이전트 로그에 `Failed to export span batch code: 401` 에러 발생 및 트레이싱 중단.
-- **원인**: `LANGFUSE_HOST`가 실제 계정의 리전(US/EU/Cloud)과 일치하지 않거나, 시크릿 업데이트 실패로 인해 잘못된 API 키가 주입됨.
-- **해결**: 정확한 리전 주소(`https://us.cloud.langfuse.com` 등) 확인 및 K8s 시크릿 재생성 후 rollout restart를 통해 에이전트에게 최신 환경변수를 강제 주입함.
+> e2-standard-2 노드 2대(2 vCPU / 8GB RAM)로 구성된 GKE 클러스터가 생성됩니다.
 
 ---
 
-## 📌 참고 자료
+## AgentOps 파이프라인
+
+```
+코드 / 프롬프트 변경
+       │
+  GitHub Push
+       │
+  GitHub Actions
+  ├── Qdrant Sidecar 기동 + 테스트 데이터 주입 (test_data.py)
+  ├── Eval 스크립트 실행 — 평균 점수 0.75 이상?
+  │     ├── 통과 → Docker 이미지 빌드 → GHCR 등재
+  │     └── 실패 → 배포 즉시 차단 ✗
+       │
+  ArgoCD — Git 변경 감지 → GKE Sync
+       │
+  Langfuse — 배포 후 실시간 관측
+  (비용 / 레이턴시 / 답변 품질)
+```
+
+---
+
+## 네트워크 보안 설계
+
+외부에 노출되는 컴포넌트를 최소화하는 것을 원칙으로 설계했습니다.
+
+| 컴포넌트 | 서비스 타입 | 접근 방식 | 이유 |
+|----------|-------------|-----------|------|
+| SRE 에이전트 API | `LoadBalancer` | 인터넷 공인 IP (80포트) | 사용자 및 AlertManager가 직접 호출해야 하므로 유일하게 외부 개방 |
+| Qdrant DB | `ClusterIP` | K8s 내부 DNS만 허용 (`http://qdrant-svc:6333`) | 핵심 지식 베이스이므로 외부 접근 원천 차단 |
+| n8n / ArgoCD | `ClusterIP` | `kubectl port-forward` (관리자 전용) | 파이프라인 조작 방지, 로컬 인증된 관리자만 UI 접근 가능 |
+
+---
+
+## 트러블슈팅
+
+운영 중 마주친 주요 문제와 해결 방법입니다.
+
+**CI에서 Eval 점수가 0점으로 나오는 문제**
+
+CI 환경에는 Qdrant DB가 비어 있어 에이전트가 아무것도 검색하지 못하는 상태로 평가가 진행됩니다. `.github/workflows/ci.yml`에 Qdrant Sidecar 서비스를 추가하고, 평가 직전 `test_data.py`를 실행해 데이터를 자동 주입하도록 개선했습니다.
+
+**GKE 배포 후 답변 품질 저하**
+
+새로 배포된 Qdrant는 지식이 없는 초기 상태입니다. `kubectl port-forward`로 클라우드 Qdrant에 연결한 뒤 `test_data.py`를 실행해 Golden Set 기반 초기 지식을 수동 시딩합니다.
+
+**PrometheusRule이 대시보드에 나타나지 않는 문제**
+
+Prometheus Operator는 `ruleSelector`에 정의된 레이블이 있는 리소스만 수집합니다. `PrometheusRule` 메타데이터에 `release: kube-prometheus-stack` 레이블을 명시하면 해결됩니다.
+
+**ArgoCD Self-Heal로 인한 Secret 원복 문제**
+
+ArgoCD의 자동 복구 기능이 활성화된 상태에서 `kubectl apply`로 Secret을 수정하면 몇 초 뒤 Git 상태로 강제 동기화됩니다. GitHub Actions Secret을 수정해 파이프라인으로 배포하거나, 테스트 시에는 ArgoCD Auto-Sync를 일시 비활성화합니다.
+
+**Langfuse 401 Unauthorized 및 트레이싱 중단**
+
+`LANGFUSE_HOST`가 실제 계정의 리전과 불일치하거나 시크릿 업데이트가 실패한 경우 발생합니다. 정확한 리전 주소(예: `https://us.cloud.langfuse.com`)를 확인하고, K8s Secret을 재생성한 뒤 `rollout restart`로 최신 환경변수를 반영합니다.
+
+**AlertManager Webhook 발송 지연 (Pending State)**
+
+`for: 1m` 설정으로 인해 파드가 죽어도 즉시 알람이 발송되지 않습니다. 장애가 1분 이상 지속될 때만 Firing 상태로 전환되는 것은 단발성 이벤트(Flapping) 필터링을 위한 의도된 설계입니다. 테스트 시에는 1분 이상의 관찰 시간을 확보해야 합니다.
+
+---
+
+## 참고 자료
 
 - [Kubernetes 공식 문서](https://kubernetes.io/docs/)
 - [LangGraph Agentic RAG 튜토리얼](https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_agentic_rag/)
+- [Langfuse 공식 문서](https://langfuse.com/docs)
+- [Qdrant 공식 문서](https://qdrant.tech/documentation/)
+- [ArgoCD 공식 문서](https://argo-cd.readthedocs.io/)
