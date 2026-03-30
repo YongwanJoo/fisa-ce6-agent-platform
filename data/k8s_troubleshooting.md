@@ -71,4 +71,4 @@ A 파드에서 `http://b-service` 로 요청을 보냈는데 `Name or service no
 ### 3-2. Evicted 파드 생성 현상
 - 노드의 저장 공간(Disk)이 압박을 받을 때 (DiskPressure), Kubelet이 살기 위해 우선순위가 낮은 파드부터 쫓아내며(Eviction) 이 상태의 파드들이 계속 늘어나는 현상입니다.
 - **해결**: 로그를 중앙 저장소로 빼서 로컬 용량을 차지하지 못하게 하고, 로컬 파드들의 `emptyDir` 할당량에 리밋을 걸어야 합니다. 삭제 명령어로 찌꺼기를 날립니다:
-`kubectl get pods | grep Evicted | awk '{print $1}' | xargs kubectl delete pod`
+`kubectl delete pods --field-selector status.reason=Evicted -A`
