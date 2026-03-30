@@ -85,7 +85,7 @@ docker push ghcr.io/yongwanjoo/sre-agent:latest
 kubectl create namespace argocd
 
 # ArgoCD 리소스 일괄 배포 
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.10.4/manifests/install.yaml
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 # 모든 파드가 뜰 때까지 잠시 대기
 kubectl wait --for=condition=Available deployment --all -n argocd --timeout=300s
