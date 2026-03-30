@@ -36,7 +36,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           QDRANT_URL: http://localhost:6333
-        run: python test_data.py
+        run: python scripts/seed_data.py
 
       - name: Run agent eval
         env:
