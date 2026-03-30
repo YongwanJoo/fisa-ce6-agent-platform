@@ -100,7 +100,7 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.pas
 # 2. 로컬에서 ArgoCD UI에 접속하기 위한 안전한 포트포워딩
 kubectl port-forward svc/argocd-server -n argocd 8080:443
 ```
-이제 `https://localhost:8080` 으로 접속하고 **Username: `admin`**, **Password: *(방금 얻은 비밀번호)*** 를 입력합니다.
+이제 `https://localhost:8080` 으로 접속하고 **Username: `admin`**, **Password: *(방금 얻은 비밀번호)*** 를 입력합니다. (브라우저에서 보안 경고가 표시될 수 있으나, 정상적인 현상이므로 '고급' 또는 '계속 진행'을 선택하세요.)
 
 ### 3단계: 우리 레포지토리(SRE 에이전트) 연결하기!
 GUI 화면에서 마우스로 클릭해서 앱을 만들 수도 있지만, GitOps 철학에 맞게 'ArgoCD 설정 자체도 코드로' 만들었습니다. 그게 바로 폴더 안의 `argocd-app.yaml` 입니다.
