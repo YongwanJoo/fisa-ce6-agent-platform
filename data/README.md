@@ -37,7 +37,7 @@ data/
 
 # 2. 시딩 스크립트 실행
 export QDRANT_URL=http://localhost:6333
-python test_data.py
+python scripts/seed_data.py
 ```
 
 ---
