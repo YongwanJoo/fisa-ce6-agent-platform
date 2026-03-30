@@ -41,7 +41,7 @@ Git 저장소의 YAML 내용과 쿠버네티스 클러스터의 실제 상태가
   ArgoCD 트리의 맨 마지막 노드(주로 붉은색 깨진 하트 모양)를 클릭하여 `Logs` 및 `Events` 탭을 열고, 컨테이너 왜 죽었는지 근본 원인을 K8s 로그로 직접 추적해야 합니다.
 
 ### 2-2. Health Unknown / Progressing (진행중 멈춤)
-배포가 안료되지 못한 채 파란 톱니바퀴 모형(Progressing)이 계속 돌고 있거나 물음표(Unknown)로 뜹니다.
+배포가 완료되지 못한 채 파란 톱니바퀴 모형(Progressing)이 계속 돌고 있거나 물음표(Unknown)로 뜹니다.
 - **주요 원인(Root Cause)**:
   1. (Unknown 상태): Custom Resource(CRD) 리소스인데 ArgoCD가 이 커스텀 리소스의 성공/실패 여부를 판독하는 법을 몰라서 상태를 `알 수 없음`으로 방치하는 경우입니다.
   2. (Progressing 상태): Deployment의 `Rolling Update` 전략을 실행 중인데 신버전 파드가 영원히 Readiness Probe (활성 점검)를 통과하지 못해 트래픽을 주지 않고 대기하는 상태(Stuck).
