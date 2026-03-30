@@ -2,11 +2,28 @@
 LLM 호출 — 의도 분류 / 쿼리 재작성 / 답변 생성
 """
 import os
+import requests
+from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
 _llm = ChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"), temperature=0)
 
+
+@tool
+def send_discord_alert(message: str) -> str:
+    """긴급한 장애 상황이나 치명적인 오류 로그를 사내 Discord 채널로 전송하여 SRE 팀에게 알립니다."""
+    webhook_url = os.getenv("DISCORD_WEBHOOK_URL", "")
+    if not webhook_url:
+        return "DISCORD_WEBHOOK_URL이 설정되지 않아 디스코드 발송을 생략했습니다. (로깅만 수행)"
+        
+    try:
+        payload = {"content": f"🚨 [SRE Agent 비상 알림]\n{message}"}
+        response = requests.post(webhook_url, json=payload)
+        response.raise_for_status()
+        return "Discord 팀에 긴급 메시지가 성공적으로 전송되었습니다."
+    except Exception as e:
+        return f"전송 실패: {e}"
 
 def classify_intent(question: str) -> str:
     prompt = ChatPromptTemplate.from_messages([
@@ -51,9 +68,26 @@ def generate_answer(question: str, docs: list) -> str:
             "당신은 Kubernetes/ArgoCD 전문 SRE 에이전트입니다.\n"
             "아래 문서를 기반으로 질문에 대한 명확한 답변(개념 설명, 에러 원인 및 해결 방법 등)을 한국어로 제공하세요.\n"
             "트러블슈팅의 경우 `kubectl logs`, `kubectl describe` 등 디버깅 방법과 컨테이너 상태(재시작 등)를 구체적으로 포함하세요.\n"
-            "문서에 없는 내용은 추측하지 말고 '문서에서 확인되지 않음'으로 표시하세요."
+            "문서에 없는 내용은 추측하지 말고 '문서에서 확인되지 않음'으로 표시하세요.\n"
+            "만약 질문자가 제공한 상황(에러 로그 등)이 장애라고 판단되고, 사용자로부터 '디스코드로 쏴줘', '알려줘', '보고해줘' 등의 요청이 있다면 반드시 `send_discord_alert` 도구를 사용하세요."
         )),
         ("human", "질문: {question}\n\n참고 문서:\n{context}"),
     ])
-    result = (prompt | _llm).invoke({"question": question, "context": context})
+    
+    # 1. 도구가 바인딩된 LLM 생성
+    llm_with_tools = _llm.bind_tools([send_discord_alert])
+    
+    # 2. LLM 호출
+    result = (prompt | llm_with_tools).invoke({"question": question, "context": context})
+    
+    # 3. Tool Calls 가 발생했는지 검사 (인터셉트 로직)
+    if hasattr(result, "tool_calls") and result.tool_calls:
+        tool_call = result.tool_calls[0]
+        if tool_call["name"] == "send_discord_alert":
+            alert_msg = tool_call["args"].get("message", "")
+            # 수동으로 툴 실행
+            tool_res = send_discord_alert.invoke({"message": alert_msg})
+            # 툴 실행 결과를 포함하여 최종 답변 리턴
+            return f"제가 상황을 분석한 결과, 중대한 사안으로 판단되어 즉시 SRE 팀 디스코드(Discord)로 다음 알림을 발송했습니다.\n\n> {alert_msg}\n\n[시스템 응답: {tool_res}]"
+            
     return result.content.strip()
