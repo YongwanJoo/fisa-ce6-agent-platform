@@ -36,10 +36,10 @@ def main():
                 metadata={"source": "argocd-docs", "section": "troubleshooting"}
             )
         ],
-        "resolved_cases": [
+        "terraform_docs": [
             Document(
-                page_content="[사내 장애 사례 해결] Pod CrashLoopBackOff 지속 발생 건: 재시작이 무한 루프 도는 현상. 애플리케이션 코드 이상은 없었으나, DB 접속 정보를 가지고 있는 Secret 환경변수 명이 틀려서 (DB_HOST -> DATABASE_HOST) 앱이 구동되자마자 즉시 뻗어버리는 문제였습니다. yaml 파일 내 env 설정을 교정하여 해결했습니다.",
-                metadata={"source": "wiki-resolved-cases", "author": "sre-team"}
+                page_content="[강제 락 해제 안내] Error acquiring the state lock 에러 발생 시 해결법: 이미 실행 중인 파이프라인이나 로컬 작업이 강제 종료되어 잔여 State Lock이 남아있는 현상입니다. 이때는 `terraform force-unlock <LOCK_ID>` 명령어로 강제 해제할 수 있습니다.",
+                metadata={"source": "terraform-troubleshooting", "author": "sre-team"}
             ),
         ]
     }
