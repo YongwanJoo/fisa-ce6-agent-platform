@@ -45,6 +45,22 @@ spec:
               value: "http://localhost:5678/"
             - name: GENERIC_TIMEZONE
               value: "Asia/Seoul"
+            - name: N8N_ENCRYPTION_KEY
+              value: "sre-agent-fixed-encryption-key-ce6"
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30  # 마이그레이션을 위해 최대 300초 대기
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 5
           volumeMounts:
             - name: n8n-storage
               mountPath: /home/node/.n8n
