@@ -17,6 +17,8 @@ metadata:
   namespace: sre-agent
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: n8n
