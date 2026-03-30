@@ -3,6 +3,8 @@ kind: PrometheusRule
 metadata:
   name: sre-agent-alert-rules
   namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
 spec:
   groups:
     - name: sre-k8s-troubleshooting-rules
