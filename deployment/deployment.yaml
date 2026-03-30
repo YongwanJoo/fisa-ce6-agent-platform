@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: sre-agent
-          image: ghcr.io/yongwanjoo/sre-agent:897fbf60d01e1eac6c759eda074e9f58be0f75f9
+          image: ghcr.io/yongwanjoo/sre-agent:e95215ac87f0a66de498b3b7f1a5c43d88b54882
           ports:
             - containerPort: 8000
           envFrom:
