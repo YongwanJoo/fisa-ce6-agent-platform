@@ -134,7 +134,7 @@ podman run -d --name qdrant \
 
 ```bash
 # CLI 모드
-python main.py
+python scripts/run_agent.py
 
 # API 서버 모드 (FastAPI)
 uvicorn agent.api:app --reload --port 8000
