@@ -10,7 +10,7 @@ QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 
 # 의도별 컬렉션 매핑
 COLLECTION_MAP = {
-    "troubleshoot": ["k8s_docs", "argocd_docs", "resolved_cases"],
+    "troubleshoot": ["k8s_docs", "argocd_docs", "terraform_docs"],
 }
 
 _client = QdrantClient(url=QDRANT_URL)
