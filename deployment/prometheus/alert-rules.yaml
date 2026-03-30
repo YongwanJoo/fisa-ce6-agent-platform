@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sre-agent-alert-rules
+  namespace: monitoring
+spec:
+  groups:
+    - name: sre-k8s-troubleshooting-rules
+      rules:
+        - alert: PodCrashLoopBackOff
+          expr: rate(kube_pod_container_status_restarts_total[5m]) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.pod }} CrashLoopBackOff"
+            description: "파드 {{ $labels.pod }}가 짧은 시간 내에 반복적으로 재시작되고 있습니다."
+
+        - alert: PodOOMKilled
+          expr: kube_pod_container_status_terminated_reason{reason="OOMKilled"} > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.pod }} OOMKilled"
+            description: "파드 {{ $labels.pod }}가 메모리 한계치(Limits)를 초과하여 커널에 의해 강제 종료되었습니다."

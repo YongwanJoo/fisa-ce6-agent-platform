@@ -1,0 +1,16 @@
+alertmanager:
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname', 'namespace']
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 1h
+      receiver: 'sre-agent-webhook'
+    receivers:
+      - name: 'sre-agent-webhook'
+        webhook_configs:
+          # SRE 에이전트의 내부 Service 엔드포인트
+          - url: 'http://sre-agent-svc.sre-agent.svc:80/webhook/alertmanager'
+            send_resolved: false
