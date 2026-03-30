@@ -70,15 +70,44 @@ docker build -t ghcr.io/yongwanjoo/sre-agent:latest .
 docker push ghcr.io/yongwanjoo/sre-agent:latest
 ```
 
-이상이 완료되면 `deployment.yaml` 파일 내의 `image: ` 태그가 올바른지 확인한 뒤, ArgoCD나 수동 적용을 진행합니다.
-```bash
-# ArgoCD 연동을 하려면
-kubectl apply -f deployment/argocd-app.yaml
+이상이 완료되면 `deployment.yaml` 파일 내의 `image: ` 태그가 올바른지 확인한 뒤, GitOps(ArgoCD) 배포를 진행합니다.
 
-# ArgoCD 없이 직접 수동 배포하려면
-kubectl apply -f deployment/deployment.yaml
-kubectl apply -f deployment/service.yaml
+---
+
+## 🚀 GitOps (ArgoCD) 실전 구축 및 연동 가이드
+
+제가 대신 설치해 드린 ArgoCD 인프라를 본인이 직접 처음부터 띄우고 연동하려면 아래 명령어 흐름을 따라주세요. 포트폴리오 면접 등에서 "어떻게 설치하고 연동했냐" 물어볼 때 그대로 대답하실 수 있는 방법입니다!
+
+### 1단계: ArgoCD 컨트롤러 설치 (한 줄 컷)
+퍼블릭 오픈소스인 ArgoCD 매니페스트를 GKE 클러스터에 바로 때려넣습니다.
+```bash
+# 네임스페이스 생성
+kubectl create namespace argocd
+
+# ArgoCD 리소스 일괄 배포 
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.10.4/manifests/install.yaml
+
+# 모든 파드가 뜰 때까지 잠시 대기
+kubectl wait --for=condition=Available deployment --all -n argocd --timeout=300s
 ```
+
+### 2단계: 초기 비밀번호 풀기 & 포트포워딩
+보안상 ArgoCD는 설치될 때 무작위 비밀번호를 생성하여 암호화(Secrets)해 둡니다. 이걸 해독해야 합니다.
+```bash
+# 1. 초기 비밀번호 (Base64) 디코딩 출력
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
+
+# 2. 로컬에서 ArgoCD UI에 접속하기 위한 안전한 포트포워딩
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+```
+이제 `https://localhost:8080` 으로 접속하고 **Username: `admin`**, **Password: *(방금 얻은 비밀번호)*** 를 입력합니다.
+
+### 3단계: 우리 레포지토리(SRE 에이전트) 연결하기!
+GUI 화면에서 마우스로 클릭해서 앱을 만들 수도 있지만, GitOps 철학에 맞게 'ArgoCD 설정 자체도 코드로' 만들었습니다. 그게 바로 폴더 안의 `argocd-app.yaml` 입니다.
+```bash
+kubectl apply -f deployment/argocd-app.yaml
+```
+이걸 치면 K8s에 ArgoCD Application 커스텀 리소스가 생성되고, ArgoCD가 이 사실을 즉시 알아채어 본인의 GitHub 레포지토리와 연동한 뒤 방대한 K8s 모니터링 그래프 창을 자동으로 그려주기 시작합니다.
 
 ---
 
