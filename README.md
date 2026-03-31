@@ -23,8 +23,7 @@ GCP GKE + GitOps(ArgoCD) + n8n 클라우드 자동화 구조 적용
 
 ## 전체 아키텍처
 
-<img width="962" height="477" alt="스크린샷 2026-03-31 오전 10 28 04" src="https://github.com/user-attachments/assets/31109ef3-e43d-427d-92c0-e6ee5aa9a621" />
-
+<img width="2908" height="1440" alt="Gemini_Generated_Image_qsoclqsoclqsoclq" src="https://github.com/user-attachments/assets/7d1369f2-df6d-4854-9b42-a3180825581e" />
 
 ---
 
