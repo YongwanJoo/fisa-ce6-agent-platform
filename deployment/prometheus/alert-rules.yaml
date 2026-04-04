@@ -16,7 +16,7 @@ spec:
             severity: critical
           annotations:
             summary: "Pod {{ $labels.pod }} CrashLoopBackOff"
-            description: "파드 {{ $labels.pod }}가 짧은 시간 내에 반복적으로 재시작되고 있습니다."
+            description: "파드 {{ $labels.pod }}가 짧은 시간 내에 반복적으로 재시작되고 있습니다. 즉시 로그 확인이 필요합니다."
 
         - alert: PodOOMKilled
           expr: kube_pod_container_status_terminated_reason{reason="OOMKilled"} > 0
@@ -25,4 +25,13 @@ spec:
             severity: critical
           annotations:
             summary: "Pod {{ $labels.pod }} OOMKilled"
-            description: "파드 {{ $labels.pod }}가 메모리 한계치(Limits)를 초과하여 커널에 의해 강제 종료되었습니다."
+            description: "파드 {{ $labels.pod }}가 메모리 한계치(Limits)를 초과하여 강제 종료되었습니다. 자원 할당량 증설을 검토하세요."
+
+        - alert: NodeDown
+          expr: up{job="kubernetes-nodes"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.node }} Down"
+            description: "워커 노드 {{ $labels.node }}가 5분 이상 응답하지 않습니다. 클러스터 시스템 이상 여부를 점검하세요."

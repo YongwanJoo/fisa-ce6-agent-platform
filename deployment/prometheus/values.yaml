@@ -1,3 +1,6 @@
+# kube-prometheus-stack Helm Chart Values
+
+# 1. Alertmanager 설정
 alertmanager:
   config:
     global:
@@ -8,10 +11,43 @@ alertmanager:
       group_interval: 1m
       repeat_interval: 1h
       receiver: 'sre-agent-webhook'
-      routes: [] 
+      routes:
+        # Watchdog 알람은 항상 발생하므로 시끄럽지 않게 null 리시버로 배출
+        - match:
+            alertname: Watchdog
+          receiver: 'null'
     receivers:
       - name: 'sre-agent-webhook'
         webhook_configs:
           - url: 'http://sre-agent-svc.sre-agent.svc:80/webhook/alertmanager'
             send_resolved: false
       - name: 'null'
+
+# 2. Grafana 설정 (고도화 반영)
+grafana:
+  enabled: true
+  admin:
+    existingSecret: grafana-admin-credentials
+    passwordKey: admin-password
+  
+  # 데이터 보존 설정 (GCP PD 활용)
+  persistence:
+    enabled: true
+    storageClassName: "standard"
+    accessModes: ["ReadWriteOnce"]
+    size: 5Gi
+
+  # 대시보드 자동 로딩을 위한 사이드카 활성화
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL
+
+# 3. Prometheus 설정
+prometheus:
+  prometheusSpec:
+    # 규칙 파일 자동 감색 레이블 설정
+    ruleSelector:
+      matchLabels:
+        release: kube-prometheus-stack
