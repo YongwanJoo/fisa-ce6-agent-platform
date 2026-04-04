@@ -98,11 +98,19 @@ GKE 환경의 노이즈 알람을 필터링하고 실제 조치가 필요한 항
 
 ## 트러블슈팅 및 가이드
 
-**1. CI 환경에서 에이전트 평가 점수가 낮은 경우**
-- `observability/golden_set.json` 및 Qdrant 데이터 연관성 확인이 필요합니다.
+플랫폼 구축 및 운영 과정에서 발생한 주요 기술적 이슈와 해결 방안입니다.
 
-**2. Traefik 대시보드 접속 불가**
-- `kubectl port-forward -n traefik ... 9000:9000` 명령어를 확인하세요.
+### 1. 인프라 및 GKE 운영 (Infrastructure)
+- **GKE 관리형 컴포넌트 허위 알람 (TargetDown)**: GKE가 관리하는 ControllerManager, Scheduler 등의 메트릭 접근 불가로 인한 알람입니다. `deployment/prometheus/values.yaml`에서 해당 항목의 모니터링을 `false`로 설정하여 해결했습니다.
+- **서비스 가용성 및 아키텍처 불일치 (arm64 vs amd64)**: 로컬(Mac M-series)과 클러스터(GCP) 간 아키텍처 불일치 문제는 Docker Multi-stage build 시 플랫폼을 명시하여 해결했으며, `podAntiAffinity`를 통해 파드를 여러 노드에 분산 배치하여 고가용성을 확보했습니다.
 
-**3. 데이터 유실 발생 시**
-- GCP PVC 상태(`Bound`) 및 스토리지 클래스 설정을 점검하세요.
+### 2. GitOps 및 배포 파이프라인 (ArgoCD)
+- **ArgoCD 동기화 지연 및 ComparisonError**: 매니페스트 오탈자나 이미지 태그 누락 등으로 인한 동기화 실패 시, `Self-Heal` 옵션을 활성화하고 `kubectl describe`를 통해 상태를 교정하여 해결했습니다.
+
+### 3. AI 에이전트 및 RAG 파이프라인 (AI/RAG)
+- **에이전트 답변 품질 저하 및 낮은 Eval 점수**: 단순 키워드 검색의 한계를 극복하기 위해 **쿼리 재작성(Rewriting)** 루프를 도입하고, **LLM-as-a-Judge** 방식을 통해 정성적인 평가 체계를 구축하여 답변 정확도를 높였습니다.
+- **벡터 DB(Qdrant) 데이터 유실**: 컨테이너 재시작 시 데이터가 사라지는 문제를 방지하기 위해 GCP Persistent Disk(PD)를 PVC로 연결하고, `scripts/seed_data.py`를 통해 초기 지식 자동 복구 메커니즘을 마련했습니다.
+
+### 4. 관찰성 체계 (Observability)
+- **PrometheusRule 인식 실패 (Label Issue)**: 규칙 파일에 `release: kube-prometheus-stack` 레이블이 누락되어 발생하는 이슈를 레이블 추가를 통해 해결했습니다.
+- **Discord 알람 전송 실패**: Webhook URL 보안 관리 방식을 Secret으로 변경하고, AlertManager 데이터 전송 규격에 맞게 에이전트 스키마를 정밀 조정하여 해결했습니다.
