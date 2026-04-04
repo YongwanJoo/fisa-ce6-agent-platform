@@ -1,0 +1,39 @@
+# Traefik v3 Helm Chart Values
+# see: https://github.com/traefik/traefik-helm-chart/blob/v34.1.0/traefik/values.yaml
+
+deployment:
+  kind: Deployment
+  replicas: 1 # Ingress Controller 자체는 1개로 운영 (필요 시 증설 가능)
+
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+
+ingressRoute:
+  dashboard:
+    enabled: true
+    # 보안을 위해 대시보드 노출은 IngressRoute 없이 Port-forward로만 사용 (사용자 요청)
+
+ports:
+  web:
+    expose:
+      default: true
+    exposedPort: 80
+  websecure:
+    expose:
+      default: true
+    exposedPort: 443
+
+# 대시보드 활성화 (내부 전용)
+additionalArguments:
+  - "--api.insecure=true"
+  - "--api.dashboard=true"
+
+# 리소스 설정
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "300m"
+    memory: "256Mi"
