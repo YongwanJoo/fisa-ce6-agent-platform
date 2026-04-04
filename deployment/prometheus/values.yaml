@@ -26,7 +26,9 @@ alertmanager:
 # 2. Grafana 설정 (고도화 반영)
 grafana:
   enabled: true
-  adminPassword: "1q2w3e4r!@" # 사용자 요청 비밀번호 반영
+  admin:
+    existingSecret: grafana-admin-credentials
+    passwordKey: admin-password
   
   # 데이터 보존 설정 (GCP PD 활용)
   persistence:

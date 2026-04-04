@@ -3,7 +3,7 @@
 
 deployment:
   kind: Deployment
-  replicas: 1 # Ingress Controller 자체는 1개로 운영 (필요 시 증설 가능)
+  replicas: 2 # 고가용성(HA)을 위해 2개로 증설 (Node 장애 대응)
 
 ingressClass:
   enabled: true
@@ -11,8 +11,8 @@ ingressClass:
 
 ingressRoute:
   dashboard:
-    enabled: true
-    # 보안을 위해 대시보드 노출은 IngressRoute 없이 Port-forward로만 사용 (사용자 요청)
+    enabled: false
+    # 보안을 위해 대시보드 노출은 IngressRoute 없이 Port-forward로만 사용 
 
 ports:
   web:
@@ -24,9 +24,8 @@ ports:
       default: true
     exposedPort: 443
 
-# 대시보드 활성화 (내부 전용)
+# 대시보드 활성화 
 additionalArguments:
-  - "--api.insecure=true"
   - "--api.dashboard=true"
 
 # 리소스 설정
