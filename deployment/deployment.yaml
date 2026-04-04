@@ -27,7 +27,7 @@ spec:
               topologyKey: "kubernetes.io/hostname"
       containers:
         - name: sre-agent
-          image: ghcr.io/yongwanjoo/sre-agent:ce5237c38d6eeb29b6e1460f3d3e1d0b4fa285c4
+          image: ghcr.io/yongwanjoo/sre-agent:90e4c5a0687973bc29827ee48660e2d06cc8cb96
           ports:
             - containerPort: 8000
           envFrom:
