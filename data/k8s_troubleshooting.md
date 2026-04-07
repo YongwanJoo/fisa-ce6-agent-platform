@@ -1,6 +1,13 @@
-# Kubernetes(K8s) 핵심 트러블슈팅 상세 가이드 (SRE 세미나 및 실무 운영용)
+# Kubernetes(K8s) 핵심 트러블슈팅 상세 가이드 (AgentOps Knowledge Base)
+
+> **Metadata**
+> - **Category**: Infrastructure / Orchestration
+> - **Keywords**: Pod, Node, Network, PVC, PDB, CNI
+> - **Version**: 1.2.0 (SRE Seminar Edition)
 
 이 문서는 Kubernetes 클러스터를 프로덕션 환경에서 운영할 때 흔히 마주하는 다양한 파드(Pod), 노드(Node), 그리고 네트워크 계층의 장애 상황을 진단하고 해결하는 상세한 절차와 가이드를 제공합니다.
+
+---
 
 ## 1. 파드(Pod) 라이프사이클 및 장애 디버깅
 
@@ -34,41 +41,39 @@
 - **해결 및 대응 방안**:
   `kubectl describe pod <pod-name>` 으로 `Events:` 탭의 스케줄링 실패 사유를 확인합니다. `0/3 nodes are available: 3 Insufficient cpu.` 와 같은 에러가 뜬다면 클러스터 오토스케일러 연동을 확인하거나 수동으로 노드를 스케일업(증설)해야 합니다.
 
-### 1-4. ImagePullBackOff / ErrImagePull
-Kubelet 서버가 컨테이너 이미지를 다운로드하지 못할 때 뜹니다.
-- **주요 원인 분석**:
-  1. Docker 컨테이너 레지스트리(ECR, GCR 등)의 인증 토큰(`imagePullSecrets`) 기간 만료.
-  2. `v1.2.` 처럼 이미지 태그 오타가 있거나 실제로 삭제된 이미지.
-- **해결 및 대응 방안**:
-  인증 정보를 갱신하고 `kubectl create secret docker-registry ...` 명령어로 레지스트리 자격증명을 컨텍스트에 추가해야 합니다.
+### 1-4. PodDisruptionBudget (PDB)로 인한 노드 드레인 실패
+클러스터 업그레이드나 노드 교체(Drain) 시 노드가 비워지지 않고 멈춰있는 현상입니다.
+- **상세**: `PDB`가 `minAvailable: 1` 로 설정되어 있는데 파드가 1개뿐인 경우, K8s는 서비스 가용성을 위해 해당 노드에서 파드를 쫓아내지 못하게 막습니다.
+- **해결**: 임시로 PDB를 삭제하거나 Deployment의 Replicas를 일시적으로 늘려 가용 파드 수를 확보한 뒤 노드를 비워야 합니다.
+
+---
 
 ## 2. 네트워크 및 서비스 디버깅 (Service / Ingress)
 
-### 2-1. 외부에서 Ingress IP나 LoadBalancer IP로 접속이 안 됨 (Connection Refused)
-클라우드 인프라는 정상적으로 떴고 IP도 할당됐는데, 웹브라우저에서 접속 에러가 발생합니다.
-- **주요 원인 분석**:
-  1. 파드가 Liveness/Readiness Probe를 통과하지 못해 K8s Endpoint에 연동되지 않았음. (트래픽 분배 대상이 아님)
-  2. Service 매니페스트의 `selector` 라벨(Label)과 파드의 `metadata.labels`가 일치하지 않음.
-  3. `targetPort` 와 컨테이너 내부 프로세스가 리스닝하고 있는 포트(Port)가 다름.
-- **해결 및 대응 방안**:
-  포트 매핑을 먼저 디버깅합니다. 파드 안으로 직접 들어가서 `curl localhost:<port>`가 성공하는지 봅니다.
-  `kubectl exec -it <pod-name> -- sh`
-  이후 `kubectl get endpoints <service-name>`을 입력했을 때 내부 파드의 K8s 사설 IP 리스트가 존재하는지(매핑 성공 여부) 확인해야 합니다.
+### 2-1. 외부 접속 불가 (Connection Refused / Gateway Timeout)
+- **점검 순서**:
+  1. **Endpoints 확인**: `kubectl get ep <svc-name>` 명령으로 파드 IP가 서비스에 정상 연동됐는지 확인. (Readiness Probe 실패 시 여기서 누락됨)
+  2. **Port Conflict**: `targetPort`와 애플리케이션 리슨 포트가 일치하는지 확인.
+  3. **NetworkPolicy**: 네임스페이스 간 통신을 차단하는 네트워킹 정책이 있는지 확인.
 
 ### 2-2. 내부 DNS 이름 풀이(Resolve) 오류 
 A 파드에서 `http://b-service` 로 요청을 보냈는데 `Name or service not known` 에러가 발생합니다.
-- **해결 및 대응 방안**:
-  CoreDNS 파드가 정상적으로 Running 중인지 확인합니다 (`kubectl get pods -n kube-system -l k8s-app=kube-dns`). 
-  만약 다른 네임스페이스라면 `http://b-service.<namespace>.svc.cluster.local` 형태의 FQDN 전체 도메인 형식을 써주어야 통신이 성사됩니다.
+- **해결**: CoreDNS 파드 상태를 점검하고, 타 네임스페이스 통신 시에는 `b-service.<ns>.svc.cluster.local` 전체 도메인(FQDN)을 사용하십시오.
 
-## 3. 노드(Node) 상태 이상 관리
+---
 
-### 3-1. Node NotReady / Unreachable
-- 노드 내부의 Kubelet 바이너리가 마스터(Control Plane)에 하트비트를 보내지 못하는 상황입니다.
-- 클라우드 환경에서는 주로 Kubelet 데몬 자체가 죽었거나 노드 자체의 메모리가 OOM에 의해 하드락(Hard lock) 상태에 빠진 경우입니다.
-- **해결**: GKE/EKS 콘솔에서 해당 워커 노드 인스턴스를 강제 재부팅 시키면, Node Auto-Repair 정책에 의해 새 OS 인스턴스로 자동 교체됩니다.
+## 3. 스토리지(Storage) 및 노드 장애
 
-### 3-2. Evicted 파드 생성 현상
-- 노드의 저장 공간(Disk)이 압박을 받을 때 (DiskPressure), Kubelet이 살기 위해 우선순위가 낮은 파드부터 쫓아내며(Eviction) 이 상태의 파드들이 계속 늘어나는 현상입니다.
-- **해결**: 로그를 중앙 저장소로 빼서 로컬 용량을 차지하지 못하게 하고, 로컬 파드들의 `emptyDir` 할당량에 리밋을 걸어야 합니다. 삭제 명령어로 찌꺼기를 날립니다:
-`kubectl delete pods --field-selector status.reason=Evicted -A`
+### 3-1. Multi-Attach Error (PVC 마운트 실패)
+- **증상**: 파드가 다른 노드로 옮겨갔는데, 이전 노드에서 볼륨 해제(Detach)가 안 되어 새 노드에서 마운트를 못 하고 대기하는 상태.
+- **해결**: 이전 노드의 볼륨 어태치먼트(VolumeAttachment) 리소스를 강제로 정리하거나, 클라우드 콘솔(AWS EBS/GCP PD)에서 수동으로 Detach 시켜야 합니다.
+
+### 3-2. Node NotReady (Kubelet 멈춤)
+- **해결**: GKE 환경 등에서는 `Node Auto-Repair`가 작동하지만, 수동 대응 시에는 SSH 접속 후 `systemctl restart kubelet` 또는 노드 인스턴스 재부팅이 필요합니다.
+
+---
+
+## 4. AgentOps 운영 팁 (SRE 에이전트 활용)
+- **로그 분석**: 에이전트에게 `kubectl logs --previous` 결과를 전달하여 종료 직전의 Stack Trace를 분석 요청하십시오.
+- **이벤트 전파**: `kubectl get events --sort-by='.lastTimestamp'` 명령 결과를 에이전트에게 주어 시간순 발생 장애를 브리핑받으십시오.
+
