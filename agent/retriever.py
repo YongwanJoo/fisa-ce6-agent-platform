@@ -21,7 +21,7 @@ ALIAS_MAP = {
 }
 
 _client = QdrantClient(url=QDRANT_URL)
-# 모델명을 명시하여 일관성 확보
+# n8n 자동 적재 모델과 반드시 일치해야 함 (text-embedding-3-small)
 _embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
 
