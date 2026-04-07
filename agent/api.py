@@ -78,7 +78,7 @@ async def alertmanager_webhook(request: Request, background_tasks: BackgroundTas
                 except Exception as ex:
                     print(f"❌ [Background Task] 분석 중 치명적 오류 발생: {ex}")
 
-            background_tasks.add_task(run_analysis, emergency_message, config)
+            background_tasks.add_task(run_analysis, search_ready_question, config)
             print(f"📡 [Webhook] AlertManager 알람 수신 및 분석 작업 등록 완료 (에러명: {alert_name})")
             
     return {"status": "received"}
