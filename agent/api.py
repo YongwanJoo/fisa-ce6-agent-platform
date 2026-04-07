@@ -69,7 +69,16 @@ async def alertmanager_webhook(request: Request, background_tasks: BackgroundTas
                 logger.error(f"Langfuse handler initialization failed: {e}")
                 config = {}
                 
-            # 2. 백그라운드에서 LangGraph 에이전트 실행 (Discord Webhook Tool 자동 호출 유도)
-            background_tasks.add_task(_graph.invoke, {"question": emergency_prompt}, config)
+            # 2. 백그라운드 분석 실행 함수 정의 및 등록
+            def run_analysis(prompt, config):
+                try:
+                    print(f"🔍 [Background Task] 분석 시작: {prompt[:100]}...")
+                    res = _graph.invoke({"question": prompt}, config=config)
+                    print(f"✅ [Background Task] 분석 완료 후 응답: {res.get('answer', '응답 없음')[:100]}...")
+                except Exception as ex:
+                    print(f"❌ [Background Task] 분석 중 치명적 오류 발생: {ex}")
+
+            background_tasks.add_task(run_analysis, emergency_prompt, config)
+            print(f"📡 [Webhook] AlertManager 알람 수신 및 분석 작업 등록 완료 (에러명: {alert_name})")
             
     return {"status": "received"}

@@ -18,11 +18,14 @@ def send_discord_alert(message: str) -> str:
         return "DISCORD_WEBHOOK_URL이 설정되지 않아 디스코드 발송을 생략했습니다. (로깅만 수행)"
         
     try:
+        print(f"🔗 [Discord Tool] 메시지 전송 시도...")
         payload = {"content": f"🚨 [SRE Agent 비상 알림]\n{message}"}
         response = requests.post(webhook_url, json=payload)
         response.raise_for_status()
+        print(f"✅ [Discord Tool] 메시지 전송 성공")
         return "Discord 팀에 긴급 메시지가 성공적으로 전송되었습니다."
     except Exception as e:
+        print(f"❌ [Discord Tool] 메시지 전송 실패: {e}")
         return f"전송 실패: {e}"
 
 def classify_intent(question: str) -> str:
@@ -109,9 +112,9 @@ def generate_answer(question: str, docs: list) -> str:
         tool_call = result.tool_calls[0]
         if tool_call["name"] == "send_discord_alert":
             alert_msg = tool_call["args"].get("message", "")
+            print(f"📢 [LLM] Discord 알림 도구 호출 감지 (메시지 길이: {len(alert_msg)})")
             # 수동으로 툴 실행
             tool_res = send_discord_alert.invoke({"message": alert_msg})
-            # 툴 실행 결과를 포함하여 최종 답변 리턴
             return f"제가 상황을 분석한 결과, 중대한 사안으로 판단되어 즉시 SRE 팀 디스코드(Discord)로 다음 알림을 발송했습니다.\n\n> {alert_msg}\n\n[시스템 응답: {tool_res}]"
             
     return result.content.strip()

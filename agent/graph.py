@@ -21,14 +21,18 @@ class AgentState(TypedDict):
 
 
 def classify_node(state: AgentState) -> AgentState:
+    print(f"🕵️ [Graph] 의도 분류 시작: {state['question'][:50]}...")
     intent = classify_intent(state["question"])
+    print(f"🎯 [Graph] 의도 분류 완료: {intent}")
     return {**state, "intent": intent, "retry_count": 0}
 
 
 def retrieve_node(state: AgentState) -> AgentState:
+    print(f"📖 [Graph] 지식베이스 검색 중 (의도: {state['intent']})...")
     try:
         docs = retrieve(state["question"], intent=state["intent"])
         score = max((d.metadata.get("score", 0) for d in docs), default=0)
+        print(f"🔍 [Graph] 검색 완료 (결과 {len(docs)}건, 최고 점수 {score:.2f})")
         return {**state, "docs": docs, "score": score}
     except Exception as e:
         print(f"[Fallback] Retrieval error: {e}")
@@ -52,11 +56,14 @@ def rewrite_node(state: AgentState) -> AgentState:
 
 
 def generate_node(state: AgentState) -> AgentState:
+    print(f"✍️ [Graph] 최종 답변 생성 중 (참고문서 {len(state['docs'])}건)...")
     try:
         answer = generate_answer(state["question"], state["docs"])
+        print(f"✨ [Graph] 답변 생성 완료")
+        return {**state, "answer": answer}
     except Exception as e:
-        answer = "답변 생성 중 일시적인 LLM 통신 오류가 발생했습니다. 잠시 후 다시 시도해 주세요. (Fallback 작동)"
-    return {**state, "answer": answer}
+        print(f"❌ [Graph] 답변 생성 실패: {e}")
+        return {**state, "answer": f"답변 생성 중 오류가 발생했습니다: {e}"}
 
 
 def ask_more_node(state: AgentState) -> AgentState:

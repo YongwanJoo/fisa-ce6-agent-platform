@@ -6,7 +6,7 @@ metadata:
   labels:
     app: sre-agent
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: sre-agent
@@ -17,17 +17,19 @@ spec:
     spec:
       affinity:
         podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchExpressions:
-                  - key: app
-                    operator: In
-                    values:
-                      - sre-agent
-              topologyKey: "kubernetes.io/hostname"
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - sre-agent
+                topologyKey: "kubernetes.io/hostname"
       containers:
         - name: sre-agent
-          image: ghcr.io/yongwanjoo/sre-agent:6cb941e0ab37b03997c0b92f1a1bbd1dced958a9
+          image: ghcr.io/yongwanjoo/sre-agent:latest
           ports:
             - containerPort: 8000
           envFrom:
