@@ -53,11 +53,13 @@ async def alertmanager_webhook(request: Request, background_tasks: BackgroundTas
             alert_name = labels.get("alertname", "Unknown Alert")
             description = annotations.get("description", "상세 내용 없음")
             
-            # 1. 긴급 분석 요청 메시지 조합
-            emergency_message = (
-                f"K8s 장애 {alert_name} (파드: {pod_name}, 네임스페이스: {namespace}) 가 발생했습니다. "
-                f"내부 지식 베이스에서 이 장애의 근본 원인을 분석하고, 실제 구제 가능한 kubectl 명령어들을 포함하여 "
-                f"즉시 send_discord_alert 도구를 사용하여 SRE 팀 앱으로 비상 보고서를 전송해."
+            # 1. 지능형 분석용 검색 쿼리 및 지침 조합
+            # 검색(RAG)이 잘 되도록 '장애명'을 전면에 배치하고 지침을 결합합니다.
+            search_ready_question = (
+                f"K8s 장애 {alert_name} 분석 및 해결 방안 요청. "
+                f"상세 내용: {description}. "
+                f"반드시 내부 지식 베이스를 검색하여 구체적인 kubectl 복구 명령어를 포함한 "
+                f"전문 SRE 장애 보고서를 작성하고 즉시 send_discord_alert 도구로 전송해."
             )
             
             try:
@@ -70,7 +72,7 @@ async def alertmanager_webhook(request: Request, background_tasks: BackgroundTas
             def run_analysis(prompt, config):
                 try:
                     print(f"🔍 [Background Task] 분석 시작: {prompt[:100]}...")
-                    # 의도 분류기를 강제로 건너뛰도록 'intent'를 주입합니다.
+                    # 의도 분류기를 건너뛰도록 'intent'를 강제로 주입합니다.
                     res = _graph.invoke({"question": prompt, "intent": "troubleshoot"}, config=config)
                     print(f"✅ [Background Task] 분석 완료 후 응답: {res.get('answer', '응답 없음')[:100]}...")
                 except Exception as ex:
