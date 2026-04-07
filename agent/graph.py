@@ -1,5 +1,5 @@
 """
-LangGraph 에이전트 그래프 정의
+LangGraph 에이전트 그래프 정의 [v5-Expert-Final]
 의도 분류 → 검색 → 신뢰도 평가 → 재검색 or 응답 생성
 """
 from typing import TypedDict, Literal
