@@ -9,7 +9,7 @@ from agent.retriever import retrieve
 from agent.llm import classify_intent, generate_answer, rewrite_query
 
 MAX_RETRY = 3
-SCORE_THRESHOLD = float(os.getenv("SCORE_THRESHOLD", "0.75"))
+SCORE_THRESHOLD = float(os.getenv("SCORE_THRESHOLD", "0.5"))
 
 class AgentState(TypedDict):
     question: str

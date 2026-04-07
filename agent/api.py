@@ -53,14 +53,8 @@ async def alertmanager_webhook(request: Request, background_tasks: BackgroundTas
             alert_name = labels.get("alertname", "Unknown Alert")
             description = annotations.get("description", "상세 내용 없음")
             
-            # 1. 지능형 분석용 검색 쿼리 및 지침 조합
-            # 검색(RAG)이 잘 되도록 '장애명'을 전면에 배치하고 지침을 결합합니다.
-            search_ready_question = (
-                f"K8s 장애 {alert_name} 분석 및 해결 방안 요청. "
-                f"상세 내용: {description}. "
-                f"반드시 내부 지식 베이스를 검색하여 구체적인 kubectl 복구 명령어를 포함한 "
-                f"전문 SRE 장애 보고서를 작성하고 즉시 send_discord_alert 도구로 전송해."
-            )
+            # 1. 지식 검색에 최적화된 심플한 쿼리 생성 (AI 별명 매핑과 연동)
+            search_ready_question = f"K8s 장애 {alert_name}"
             
             try:
                 config = {"callbacks": [get_langfuse_handler()]}

@@ -13,11 +13,26 @@ COLLECTION_MAP = {
     "troubleshoot": ["k8s_docs", "argocd_docs", "terraform_docs"],
 }
 
+# 장애 명칭 별명 매핑 (AI 검색 품질 보강)
+ALIAS_MAP = {
+    "PodCrashLoopBackOff": "KubePodCrashLooping PodCrashLoopBackOff",
+    "KubePodCrashLooping": "PodCrashLoopBackOff KubePodCrashLooping",
+    "CPUThrottlingHigh": "KubeCPUThrottlingHigh CPUThrottlingHigh",
+}
+
 _client = QdrantClient(url=QDRANT_URL)
-_embeddings = OpenAIEmbeddings()
+# 모델명을 명시하여 일관성 확보
+_embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
 
 def retrieve(query: str, intent: str, k: int = 5) -> list:
+    # 쿼리 확장 로직 적용
+    expanded_query = query
+    for key, alias in ALIAS_MAP.items():
+        if key in query:
+            expanded_query = f"{query} {alias}"
+            break
+
     collections = COLLECTION_MAP.get(intent, ["k8s_docs"])
     all_docs = []
     for col in collections:
@@ -27,12 +42,16 @@ def retrieve(query: str, intent: str, k: int = 5) -> list:
                 collection_name=col,
                 embedding=_embeddings,
             )
-            docs = store.similarity_search_with_score(query, k=k)
+            # 확장된 쿼리로 AI 의미 검색 수행
+            docs = store.similarity_search_with_score(expanded_query, k=k)
             for doc, score in docs:
                 doc.metadata["score"] = score
                 doc.metadata["collection"] = col
-            all_docs.extend([doc for doc, _ in docs])
+                all_docs.append(doc)
         except Exception:
             # 컬렉션이 없으면 스킵
             pass
-    return all_docs
+    
+    # 점수 순으로 정렬하여 상위 k개 반환
+    all_docs.sort(key=lambda x: x.metadata.get("score", 0), reverse=True)
+    return all_docs[:k]
