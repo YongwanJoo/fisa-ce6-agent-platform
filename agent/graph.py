@@ -21,6 +21,11 @@ class AgentState(TypedDict):
 
 
 def classify_node(state: AgentState) -> AgentState:
+    # 이미 의도가 설정되어 있다면 (예: 웹훅에서 강제 지정) 분류기를 건너뜁니다.
+    if state.get("intent"):
+        print(f"⏩ [Graph] 기존 의도 사용: {state['intent']}")
+        return {**state, "retry_count": 0}
+        
     print(f"🕵️ [Graph] 의도 분류 시작: {state['question'][:50]}...")
     intent = classify_intent(state["question"])
     print(f"🎯 [Graph] 의도 분류 완료: {intent}")
