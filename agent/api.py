@@ -55,12 +55,12 @@ async def alertmanager_webhook(request: Request, background_tasks: BackgroundTas
             
             # 1. 강제 기상 프롬프트 조합
             emergency_prompt = (
-                f"긴급 상황 발생! 현재 클러스터에서 K8s 장애가 감지되었습니다.\n"
+                f"🚨 [긴급 장애 분석 요청] 아래의 K8s 장애가 감지되었습니다. 지식 베이스를 철저히 검색하여 이 장애의 근본 원인을 분석하고, 전문가 수준의 조치 명령어(kubectl 등)가 포함된 **장애 보고서**를 작성하여 즉시 `send_discord_alert`로 보고하세요!\n\n"
+                f"--- 장애 상세 ---\n"
                 f"- 에러명: {alert_name}\n"
                 f"- 파드명: {pod_name}\n"
                 f"- 네임스페이스: {namespace}\n"
-                f"- 상세내용: {description}\n\n"
-                f"이 장애의 원인을 분석하고 해결책을 찾아 즉시 '디스코드로 보고'해줘!"
+                f"- 상세내용: {description}"
             )
             
             try:

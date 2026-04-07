@@ -60,6 +60,23 @@
 A 파드에서 `http://b-service` 로 요청을 보냈는데 `Name or service not known` 에러가 발생합니다.
 - **해결**: CoreDNS 파드 상태를 점검하고, 타 네임스페이스 통신 시에는 `b-service.<ns>.svc.cluster.local` 전체 도메인(FQDN)을 사용하십시오.
 
+### 2-3. 제어 평면(Control Plane) 구성 요소 장애 (KubeProxy, Scheduler 등)
+- **에러명**: `KubeProxyDown`, `KubeSchedulerDown`, `KubeControllerManagerDown`
+- **주요 원인**: 
+  1. GKE/EKS 등 관리형 쿠버네티스의 마스터 노드와 프로메테우스 간의 통신 장애.
+  2. 마스터 컴포넌트가 리소스 부족으로 인해 비정상 종료되었거나 재시작 중인 상태.
+- **분석 및 해결**:
+  1. **상태 확인**: `kubectl get pods -n kube-system` 명령으로 해당 컴포넌트가 Running 인지 확인하십시오.
+  2. **GCP 콘솔 확인**: GKE 대시보드에서 '제어 평면 상태'가 '정상'인지 확인하고, 업그레이드 중인지 체크하십시오.
+  3. **인증 갱신**: 가끔 API 서버 통신 인증이 깨졌을 때 발생하므로 `gcloud container clusters get-credentials` 명령을 통해 인증 세션을 리프레시하십시오.
+
+### 2-4. TargetDown (CoreDNS / Monitoring Targets)
+- **증상**: 프로메테우스에서 특정 타겟(주로 CoreDNS)의 메트릭 수집이 100% 실패함.
+- **해결**: 
+  1. CoreDNS 파드가 모두 죽었는지 확인하십시오.
+  2. **즉각 조치**: `kubectl rollout restart deployment coredns -n kube-system` 명령으로 DNS 서버를 재시작하여 인코딩 문제를 해결할 수 있습니다.
+  3. 서비스 엔드포인트(`kubectl get ep coredns -n kube-system`)가 파드 IP를 제대로 물고 있는지 확인하십시오.
+
 ---
 
 ## 3. 스토리지(Storage) 및 노드 장애
